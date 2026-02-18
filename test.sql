@@ -129,3 +129,32 @@ AND cust_profile_id NOT IN (
     ) WHERE rn = 1 AND change_action IN ('INSERT','UPDATE')
 )
 ORDER BY cust_profile_id, CAST(change_dttm AS TIMESTAMP)
+
+
+
+
+-- Active on 2024-01-01
+WITH snap1 AS (
+    SELECT cust_profile_id, change_action,
+        ROW_NUMBER() OVER (PARTITION BY cust_profile_id ORDER BY CAST(change_dttm AS TIMESTAMP) DESC) AS rn
+    FROM population_identified_hist
+    WHERE tranche_name = '3d Associations'
+    AND CAST(change_dttm AS TIMESTAMP) <= '2024-01-01'
+    QUALIFY rn = 1 AND change_action IN ('INSERT','UPDATE')
+),
+
+-- Active on 2024-04-01
+snap2 AS (
+    SELECT cust_profile_id, change_action,
+        ROW_NUMBER() OVER (PARTITION BY cust_profile_id ORDER BY CAST(change_dttm AS TIMESTAMP) DESC) AS rn
+    FROM population_identified_hist
+    WHERE tranche_name = '3d Associations'
+    AND CAST(change_dttm AS TIMESTAMP) <= '2024-04-01'
+    QUALIFY rn = 1 AND change_action IN ('INSERT','UPDATE')
+)
+
+-- In snap1 but not snap2 = dropped off
+SELECT s1.cust_profile_id
+FROM snap1 s1
+LEFT JOIN snap2 s2 ON s1.cust_profile_id = s2.cust_profile_id
+WHERE s2.cust_profile_id IS NULL
