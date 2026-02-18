@@ -99,3 +99,33 @@ FROM pop p
 LEFT JOIN entered e ON e.snapshot_date = p.snapshot_date
 LEFT JOIN exited  x ON x.snapshot_date = p.snapshot_date
 ORDER BY p.snapshot_date
+
+
+
+
+-- Customers active on 2024-01-01 but NOT active on 2024-04-01
+-- that are NOT in our exited count
+SELECT t.cust_profile_id, t.change_action, t.change_dttm
+FROM population_identified_hist t
+WHERE tranche_name = '3d Associations'
+AND cust_profile_id IN (
+    -- Active on 2024-01-01
+    SELECT cust_profile_id FROM (
+        SELECT cust_profile_id, change_action,
+            ROW_NUMBER() OVER (PARTITION BY cust_profile_id ORDER BY CAST(change_dttm AS TIMESTAMP) DESC) AS rn
+        FROM population_identified_hist
+        WHERE tranche_name = '3d Associations'
+        AND CAST(change_dttm AS TIMESTAMP) <= '2024-01-01'
+    ) WHERE rn = 1 AND change_action IN ('INSERT','UPDATE')
+)
+AND cust_profile_id NOT IN (
+    -- Active on 2024-04-01
+    SELECT cust_profile_id FROM (
+        SELECT cust_profile_id, change_action,
+            ROW_NUMBER() OVER (PARTITION BY cust_profile_id ORDER BY CAST(change_dttm AS TIMESTAMP) DESC) AS rn
+        FROM population_identified_hist
+        WHERE tranche_name = '3d Associations'
+        AND CAST(change_dttm AS TIMESTAMP) <= '2024-04-01'
+    ) WHERE rn = 1 AND change_action IN ('INSERT','UPDATE')
+)
+ORDER BY cust_profile_id, CAST(change_dttm AS TIMESTAMP)
